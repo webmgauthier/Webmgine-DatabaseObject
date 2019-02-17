@@ -1,0 +1,18 @@
+{
+    "name": "webmgine/database-object",
+    "description": "Simple custom PHP mysql/mariaDb object",
+    "authors": [
+        {
+            "name": "Michel Gauthier",
+            "email": "web.mgauthier@gmail.com"
+        }
+    ],
+    "minimum-stability": "dev",
+    "require": {
+        "php": ">=7.0.0"
+    },
+    "autoload": {
+        "psr-4": {"Webmgine\\": "src/"}
+    },
+    "license": "MIT"
+}
