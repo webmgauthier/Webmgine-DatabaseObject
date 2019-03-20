@@ -191,6 +191,18 @@ class DatabaseObject{
         $this->insertInto = '';
         $this->sets = [];
 	}
+
+	public function runSqlFile(string $filepath, bool $replacePrefix = true):void{
+		$query = file_get_contents($filepath);
+		$this->runSqlText($query, $replacePrefix);
+	}
+
+	public function runSqlText(string $query, bool $replacePrefix = true):void{
+		$query = str_replace($this->prefixTarget, $this->prefix, $query);
+		$currentQuery = $this->pdo->prepare($query);
+		$currentQuery->execute();
+		$this->lastResult = $currentQuery->fetchAll(\PDO::FETCH_OBJ);
+	}
 	
 	public function select($item):bool{
 		if(is_string($item)){
