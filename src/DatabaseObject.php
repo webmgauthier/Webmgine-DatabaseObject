@@ -183,7 +183,7 @@ class DatabaseObject{
 		return false;
 	}
 	
-	public function newQuery():void{
+	public function newQuery(){
 		$this->selects = [];
 		$this->from = '';
 		$this->wheres = [];
@@ -192,12 +192,12 @@ class DatabaseObject{
         $this->sets = [];
 	}
 
-	public function runSqlFile(string $filepath, bool $replacePrefix = true):void{
+	public function runSqlFile(string $filepath, bool $replacePrefix = true){
 		$query = file_get_contents($filepath);
 		$this->runSqlText($query, $replacePrefix);
 	}
 
-	public function runSqlText(string $query, bool $replacePrefix = true):void{
+	public function runSqlText(string $query, bool $replacePrefix = true){
 		$query = str_replace($this->prefixTarget, $this->prefix, $query);
 		$currentQuery = $this->pdo->prepare($query);
 		$currentQuery->execute();
@@ -238,11 +238,11 @@ class DatabaseObject{
 		return false;
 	}
 	
-	public function setPrefix(string $prefix):void{
+	public function setPrefix(string $prefix){
 		$this->prefix = $prefix;
 	}
 	
-	public function setPrefixTarget(string $prefixTarget):void{
+	public function setPrefixTarget(string $prefixTarget){
 		$this->prefixTarget = $prefixTarget;
 	}
 	
