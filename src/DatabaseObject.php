@@ -118,6 +118,20 @@ class DatabaseObject{
 		}
 		return $queryString;
 	}
+
+	public function deleteFrom(string $table, array $wheres, array $data = []):bool{
+		$query = 'DELETE FROM '.$table.' WHERE';
+		foreach($wheres AS $where){
+			$query .= ' '.$where;
+		}
+		$query = str_replace($this->prefixTarget, $this->prefix, $query);
+		$currentQuery = $this->pdo->prepare($query);
+		if(!$currentQuery){
+			return false;
+		}
+		$currentQuery->execute($data);
+		return true;
+	}
 	
 	public function execute(array $data = []):bool{
 		$query = $this->buildQuery($data);
