@@ -12,7 +12,8 @@ class DatabaseObject{
 	protected $insertInto = '';
 	protected $update = '';
 	protected $wheres = [];
-    protected $sets = [];
+	protected $sets = [];
+	protected $joins = [];
     protected $state = [
         'error' => '',
         'messages' => []
@@ -47,6 +48,10 @@ class DatabaseObject{
 		if(isset($data['prefix'])){
 			$this->setPrefix($data['prefix']);
 		}
+	}
+
+	public function join(array $definitions){
+		$this->joins = array_merge($this->joins, $definitions);
 	}
 
     public function buildQuery($data = []):string{
@@ -87,6 +92,16 @@ class DatabaseObject{
 		}
 		// FROM
 		$queryString .= ' FROM '.$this->from;
+		// JOINS
+		if(count($this->joins) > 0){
+			foreach($this->joins AS $tableName => $definition){
+				$queryString .= ' '.$definition['side'].' JOIN '.$tableName;
+				if(isset($definition['as'])){
+					$queryString .= ' AS '.$definition['as'];
+				}
+				$queryString .= ' ON '.$definition['on'];
+			}
+		}
 		// WHERE
 		if(count($this->wheres) > 0){
 			$queryString .= ' WHERE ';
@@ -178,7 +193,7 @@ class DatabaseObject{
     
     public function getState(){
         return $this->state;
-    }
+	}
 
 	public function insertInto($item):bool{
 		if(is_string($item)){
@@ -203,7 +218,8 @@ class DatabaseObject{
 		$this->wheres = [];
 		$this->update = '';
         $this->insertInto = '';
-        $this->sets = [];
+		$this->sets = [];
+		$this->joins = [];
 	}
 
 	public function runSqlFile(string $filepath, bool $replacePrefix = true){
