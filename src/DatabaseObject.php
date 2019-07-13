@@ -3,11 +3,15 @@ namespace Webmgine;
 
 class DatabaseObject{
 
+	protected $columns = [];
+	protected $createTable = '';
+	protected $createTablePk = '';
     protected $pdo;
 	protected $prefix = '';
 	protected $prefixTarget = '#__';
 	protected $lastResult;
 	protected $selects = [];
+	protected $show = [];
 	protected $from = '';
 	protected $insertInto = '';
 	protected $update = '';
@@ -54,18 +58,66 @@ class DatabaseObject{
 		$this->joins = array_merge($this->joins, $definitions);
 	}
 
+	public function addColumn(string $name, array $params):bool{
+		if(!isset($params['type'])){
+			return false;
+		}
+		if(isset($params['primaryKey']) && $params['primaryKey']){
+			$this->createTablePk = $params['primaryKey'];
+		}
+		$this->columns[$name] = $params;
+		return true;
+	}
+
+	public function createTable(string $item):bool{
+		$item = trim($item);
+		if($item === ''){
+			return false;
+		}
+		$this->createTable = $item;
+		return false;
+	}
+
     public function buildQuery($data = []):string{
 		$query = '';
 		if(count($this->selects) > 0){
-			$query = $this->buildSelectQuery();
+			$query = $this->buildSelectQuery($this->selects);
 		}
-		if($this->update !== ''){
+		else if(count($this->show) > 0){
+			$query = $this->buildSelectQuery($this->show, 'SHOW');
+		}
+		else if($this->update !== ''){
 			$query = $this->buildUpdateQuery();
 		}
-		if($this->insertInto !== ''){
+		else if($this->insertInto !== ''){
 			$query = $this->buildInsertQuery($data);
 		}
+		else if($this->createTable !== ''){
+			$query = $this->buildCreateTableQuery($data);
+		}
 		return $query;
+	}
+
+	protected function buildCreateTableQuery($data){
+		$query = 'CREATE TABLE '.$this->createTable.' (';
+		$first = true;
+		foreach($this->columns AS $columnName => $columnParams){
+			if(!$first){
+				$query .= ', ';
+			}
+			$query .= $columnName.' '.$columnParams['type'];
+			if(isset($columnParams['unsigned']) && $columnParams['unsigned']){
+				$query .= ' UNSIGNED';
+			}
+			if(isset($columnParams['autoIncrement']) && $columnParams['autoIncrement']){
+				$query .= ' AUTO_INCREMENT';
+			}
+			if(isset($columnParams['primaryKey']) && $columnParams['primaryKey']){
+				$query .= ' PRIMARY KEY';
+			}
+			$first = false;
+		}
+		return $query.');';
 	}
 
 	protected function buildInsertQuery($data):string{
@@ -82,12 +134,12 @@ class DatabaseObject{
 		return $queryString;
 	}
 	
-	protected function buildSelectQuery():string{
+	protected function buildSelectQuery(array $items, string $start = 'SELECT'):string{
 		// SELECT
-		$queryString = 'SELECT ';
+		$queryString = $start.' ';
 		$first = true;
-		foreach($this->selects AS $select){
-			$queryString .= ($first?'':', ').$select;
+		foreach($items AS $item){
+			$queryString .= ($first?'':', ').$item;
 			$first = false;
 		}
 		// FROM
@@ -220,6 +272,10 @@ class DatabaseObject{
         $this->insertInto = '';
 		$this->sets = [];
 		$this->joins = [];
+		$this->createTable = '';
+		$this->createTablePk = '';
+		$this->columns = [];
+		$this->show = [];
 	}
 
 	public function runSqlFile(string $filepath, bool $replacePrefix = true){
@@ -245,6 +301,23 @@ class DatabaseObject{
 			}
 			foreach($item AS $id => $value){
 				$this->selects[] = $value.(is_int($id)?'':' as '.$id);
+			}
+			return true;
+		}
+		return false;
+	}
+
+	public function show($item):bool{
+		if(is_string($item)){
+			$this->show[] = $item;
+			return true;
+		}
+		if(is_array($item)){
+			if(count($item) < 1){
+				return false;
+			}
+			foreach($item AS $id => $value){
+				$this->show[] = $value.(is_int($id)?'':' as '.$id);
 			}
 			return true;
 		}
