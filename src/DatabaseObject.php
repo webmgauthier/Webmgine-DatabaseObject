@@ -10,6 +10,8 @@ class DatabaseObject{
 	protected $prefix = '';
 	protected $prefixTarget = '#__';
 	protected $lastResult;
+	protected $limit = 0;
+	protected $orderBy = '';
 	protected $selects = [];
 	protected $show = [];
 	protected $from = '';
@@ -163,6 +165,14 @@ class DatabaseObject{
 				$first = false;
 			}
 		}
+		// ORDER BY
+		if($this->orderBy !== ''){
+			$queryString .= ' ORDER BY '.$this->orderBy;
+		}
+		// LIMIT
+		if($this->limit > 0){
+			$queryString .= ' LIMIT '.$this->limit;
+		}
 		return $queryString;
 	}
 	
@@ -263,6 +273,10 @@ class DatabaseObject{
 		}
 		return false;
 	}
+
+	public function limit(int $limit){
+		$this->limit = $limit;
+	}
 	
 	public function newQuery(){
 		$this->selects = [];
@@ -276,6 +290,12 @@ class DatabaseObject{
 		$this->createTablePk = '';
 		$this->columns = [];
 		$this->show = [];
+		$this->limit = 0;
+		$this->orderBy = '';
+	}
+
+	public function orderBy(string $orderBy){
+		$this->orderBy = $orderBy;
 	}
 
 	public function runSqlFile(string $filepath, bool $replacePrefix = true){
