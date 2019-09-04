@@ -18,7 +18,6 @@ class DatabaseObject{
 	protected $insertInto = '';
 	protected $update = '';
 	protected $wheres = [];
-	protected $sets = [];
 	protected $joins = [];
     protected $state = [
         'error' => '',
@@ -89,7 +88,7 @@ class DatabaseObject{
 			$query = $this->buildSelectQuery($this->show, 'SHOW');
 		}
 		else if($this->update !== ''){
-			$query = $this->buildUpdateQuery();
+			$query = $this->buildUpdateQuery($data);
 		}
 		else if($this->insertInto !== ''){
 			$query = $this->buildInsertQuery($data);
@@ -176,12 +175,12 @@ class DatabaseObject{
 		return $queryString;
 	}
 	
-	protected function buildUpdateQuery():string{
+	protected function buildUpdateQuery($data):string{
 		// UPDATE
 		$queryString = 'UPDATE '.$this->update.' SET ';
 		$first = true;
-		foreach($this->sets AS $set){
-			$queryString .= ($first?'':', ').$set;
+		foreach($data AS $column => $value){
+			$queryString .= ($first?'':', ').'`'.$column.'`=:'.$column;
 			$first = false;
 		}
 		// WHERE
@@ -284,7 +283,6 @@ class DatabaseObject{
 		$this->wheres = [];
 		$this->update = '';
         $this->insertInto = '';
-		$this->sets = [];
 		$this->joins = [];
 		$this->createTable = '';
 		$this->createTablePk = '';
@@ -338,23 +336,6 @@ class DatabaseObject{
 			}
 			foreach($item AS $id => $value){
 				$this->show[] = $value.(is_int($id)?'':' as '.$id);
-			}
-			return true;
-		}
-		return false;
-	}
-	
-	public function set($item){
-		if(is_string($item)){
-			$this->sets[] = $item;
-			return true;
-		}
-		if(is_array($item)){
-			if(count($item) < 1){
-				return false;
-			}
-			foreach($item as $i){
-				$this->sets[] = $i;
 			}
 			return true;
 		}
