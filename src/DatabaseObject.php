@@ -6,6 +6,7 @@ class DatabaseObject{
 	protected $columns = [];
 	protected $createTable = '';
 	protected $createTablePk = '';
+	protected $lastInsertedId = 0;
     protected $pdo;
 	protected $prefix = '';
 	protected $prefixTarget = '#__';
@@ -183,7 +184,7 @@ class DatabaseObject{
 			$queryString .= ($first?'':', ').'`'.$column.'`=:'.$column;
 			$first = false;
 		}
-		// WHERE
+		// WHERE 
 		if(count($this->wheres) > 0){
 			$queryString .= ' WHERE ';
 			$first = true;
@@ -218,6 +219,9 @@ class DatabaseObject{
 		}
 		$currentQuery->execute($data);
 		$this->lastResult = $currentQuery->fetchAll(\PDO::FETCH_OBJ);
+		if(substr($query, 0, 6) === 'INSERT'){
+			$this->lastInsertedId = $this->pdo->lastInsertId();
+		}
 		return true;
 	}
 	
@@ -236,6 +240,10 @@ class DatabaseObject{
 			return true;
 		}
 		return false;
+	}
+
+	public function getLastInsertedId():int{
+		$this->lastInsertedId;
 	}
 	
 	public function getResult(){
