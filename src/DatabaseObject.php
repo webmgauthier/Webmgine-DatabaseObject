@@ -243,7 +243,7 @@ class DatabaseObject{
 	}
 
 	public function getLastInsertedId():int{
-		$this->lastInsertedId;
+		return $this->lastInsertedId;
 	}
 	
 	public function getResult(){
