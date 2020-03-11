@@ -1,8 +1,136 @@
 <?php
 namespace Webmgine;
+use PDO;
+use Webmgine\DatabaseObjectCriteria AS Criteria;
+class DatabaseObject {
 
-class DatabaseObject{
+	const OPTION_PORT = 'port';
+	const OPTION_ENCODING = 'encoding';
+	const OPTION_TABLE_PREFIX = 'tablePrefix';
+	const OPTION_TABLE_PREFIX_PLACEHOLDER = 'tablePrefixPlaceholder';
+	const QUERY_TYPE_SELECT = 'SELECT';
+	const QUERY_TYPE_UPDATE = 'UPDATE';
+	const QUERY_TYPE_DELETE = 'DELETE';
+	const CONDITION_AND = 'AND';
+	const CONDITION_OR = 'OR';
 
+	protected string $tablePrefix = '';
+	protected string $tablePrefixPlaceholder = '#__';
+	protected ?string $queryType = null;
+	protected array $selectItems = [];
+	protected array $from = [
+		'table' => '',
+		'as' => ''
+	];
+	protected array $conditions = [];
+
+	public function __construct(string $host, string $name, string $user, string $pass, array $options = []) {
+		$port = (isset($options[self::OPTION_PORT]) ? $options[self::OPTION_PORT] : 3306);
+		$encoding = (isset($options[self::OPTION_ENCODING]) ? $options[self::OPTION_ENCODING] : 'UTF8');
+		$this->pdo = new PDO(
+			"mysql:host=". $host .";port=". $port .";dbname=". $name, $user, $pass,
+			[
+				PDO::MYSQL_ATTR_INIT_COMMAND => 'SET NAMES '. $encoding
+			]
+		);
+		if (isset($options[self::OPTION_TABLE_PREFIX])) $this->tablePrefix = $options[self::OPTION_TABLE_PREFIX];
+		if (isset($options[self::OPTION_TABLE_PREFIX_PLACEHOLDER])) $this->tablePrefixPlaceholder = $options[self::OPTION_TABLE_PREFIX_PLACEHOLDER];
+	}
+
+	public function select(array $items): DatabaseObject {
+		$this->queryType = self::QUERY_TYPE_SELECT;
+		$this->selectItems = $items;
+		return $this;
+	}
+
+	public function from(string $table, string $as = ''): DatabaseObject {
+		$table = str_replace($this->tablePrefixPlaceholder, $this->tablePrefix, $table);
+		$this->from['table'] = $table;
+		$this->from['as'] = ($as === '' ? $table : $as);
+		return $this;
+	}
+
+	public function addCondition(Criteria $criteria, ?string $condition = null): DatabaseObject {
+		if (is_null($condition) || !in_array($condition, [self::CONDITION_AND, self::CONDITION_OR])) {
+			$condition = self::CONDITION_AND;
+		}
+		$this->conditions[] = [
+			'condition' => $condition,
+			'criteria' => $criteria
+		];
+		return $this;
+	}
+
+	public function execute(array $data = []): DatabaseObject {
+		$query = $this->buildQuery();
+
+		
+		var_dump( $query );
+		var_dump('TODO: Execute');
+		die;
+
+
+		
+		return $this;
+	}
+
+	protected function buildQuery(): string {
+		switch ($this->queryType) {
+			case self::QUERY_TYPE_SELECT: return self::buildSelectQuery();
+			case self::QUERY_TYPE_UPDATE: return self::buildUpdateQuery();
+			case self::QUERY_TYPE_DELETE: return self::buildDeleteQuery();
+		}
+	}
+
+	protected function buildSelectQuery(): string {
+		$first = true;
+		$query = 'SELECT ';
+		foreach ($this->selectItems AS $item) {
+			$query .= ($first ? '' : ', '). $item;
+			$first = false;
+		}
+		$query .= ' FROM `'. $this->from['table'] .'` AS `'. $this->from['as'] .'`';
+		if (count($this->conditions) > 0) {
+			$query .= ' WHERE '. $this->conditionsToString();
+		}
+		return $query .';';
+	}
+
+	protected function buildUpdateQuery(): string {
+
+		var_dump('TODO: buildUpdateQuery');
+		die;
+
+		return '';
+	}
+
+	protected function buildDeleteQuery(): string {
+
+		var_dump('TODO: buildDeleteQuery');
+		die;
+
+		return '';
+	}
+
+	protected function conditionsToString(): string {
+		$condString = '';
+		
+		var_dump('TODO: conditionsToString');
+		die;
+
+
+		foreach ($this->conditions AS $condition) {
+
+			
+
+		}
+		return $condString;
+	}
+
+
+
+
+	/*
 	protected $columns = [];
 	protected $createTable = '';
 	protected $createTablePk = '';
@@ -388,4 +516,6 @@ class DatabaseObject{
 		}
 		return false;
 	}
+	*/
+
 }
