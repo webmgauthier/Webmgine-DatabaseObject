@@ -1,19 +1,28 @@
 <?php
 namespace Webmgine;
+
 use PDO;
+use stdClass;
+use App\System\Exception;
 use Webmgine\DatabaseObjectCriteria AS Criteria;
+
 class DatabaseObject {
 
 	const OPTION_PORT = 'port';
+	const OPTION_PORT_DEFAULT = 3306;
 	const OPTION_ENCODING = 'encoding';
+	const OPTION_ENCODING_DEFAULT = 'UTF8';
 	const OPTION_TABLE_PREFIX = 'tablePrefix';
 	const OPTION_TABLE_PREFIX_PLACEHOLDER = 'tablePrefixPlaceholder';
 	const QUERY_TYPE_SELECT = 'SELECT';
+	const QUERY_TYPE_SHOW = 'SHOW';
+	const QUERY_TYPE_INSERT = 'INSERT';
 	const QUERY_TYPE_UPDATE = 'UPDATE';
 	const QUERY_TYPE_DELETE = 'DELETE';
 	const CONDITION_AND = 'AND';
 	const CONDITION_OR = 'OR';
 
+	protected string $databaseName = '';
 	protected string $tablePrefix = '';
 	protected string $tablePrefixPlaceholder = '#__';
 	protected ?string $queryType = null;
@@ -23,31 +32,19 @@ class DatabaseObject {
 		'as' => ''
 	];
 	protected array $conditions = [];
+	protected array $values = [];
+	protected $lastResult;
 
 	public function __construct(string $host, string $name, string $user, string $pass, array $options = []) {
-		$port = (isset($options[self::OPTION_PORT]) ? $options[self::OPTION_PORT] : 3306);
-		$encoding = (isset($options[self::OPTION_ENCODING]) ? $options[self::OPTION_ENCODING] : 'UTF8');
+		$this->databaseName = $name;
+		$port = (isset($options[self::OPTION_PORT]) ? $options[self::OPTION_PORT] : self::OPTION_PORT_DEFAULT);
+		$encoding = (isset($options[self::OPTION_ENCODING]) ? $options[self::OPTION_ENCODING] : self::OPTION_ENCODING_DEFAULT);
 		$this->pdo = new PDO(
-			"mysql:host=". $host .";port=". $port .";dbname=". $name, $user, $pass,
-			[
-				PDO::MYSQL_ATTR_INIT_COMMAND => 'SET NAMES '. $encoding
-			]
+			"mysql:host=". $host .";port=". $port .";dbname=". $this->databaseName, $user, $pass,
+			[PDO::MYSQL_ATTR_INIT_COMMAND => 'SET NAMES '. $encoding]
 		);
 		if (isset($options[self::OPTION_TABLE_PREFIX])) $this->tablePrefix = $options[self::OPTION_TABLE_PREFIX];
 		if (isset($options[self::OPTION_TABLE_PREFIX_PLACEHOLDER])) $this->tablePrefixPlaceholder = $options[self::OPTION_TABLE_PREFIX_PLACEHOLDER];
-	}
-
-	public function select(array $items): DatabaseObject {
-		$this->queryType = self::QUERY_TYPE_SELECT;
-		$this->selectItems = $items;
-		return $this;
-	}
-
-	public function from(string $table, string $as = ''): DatabaseObject {
-		$table = str_replace($this->tablePrefixPlaceholder, $this->tablePrefix, $table);
-		$this->from['table'] = $table;
-		$this->from['as'] = ($as === '' ? $table : $as);
-		return $this;
 	}
 
 	public function addCondition(Criteria $criteria, ?string $condition = null): DatabaseObject {
@@ -61,39 +58,110 @@ class DatabaseObject {
 		return $this;
 	}
 
-	public function execute(array $data = []): DatabaseObject {
+	public function execute(): DatabaseObject {
 		$query = $this->buildQuery();
-
-		
-		var_dump( $query );
-		var_dump('TODO: Execute');
-		die;
-
-
-		
+		$currentQuery = $this->pdo->prepare($query);
+		if (!$currentQuery) throw new Exception('Failed to prepare query');
+		$currentQuery->execute($this->values);
+		$this->lastResult = $currentQuery->fetchAll(PDO::FETCH_OBJ);
+		if ($this->queryType === self::QUERY_TYPE_INSERT) $this->lastInsertedId = $this->pdo->lastInsertId();
 		return $this;
 	}
+
+	public function from(string $table, string $as = ''): DatabaseObject {
+		$table = str_replace($this->tablePrefixPlaceholder, $this->tablePrefix, $table);
+		$this->from['table'] = $table;
+		$this->from['as'] = $as;
+		return $this;
+	}
+
+	public function getDatabaseName(): string {
+		return $this->databaseName;
+	}
+
+	public function getTablePrefix(): string {
+		return $this->tablePrefix;
+	}
+
+	public function getTablePrefixPlaceholder(): string {
+		return $this->tablePrefixPlaceholder;
+	}
+
+	public function getResult(): ?stdClass {
+		if (!isset($this->lastResult) || !is_array($this->lastResult) || count($this->lastResult) < 1) return null;
+		return $this->lastResult[0];
+	}
+	
+	public function getResults(): ?array {
+		if (!isset($this->lastResult) || !is_array($this->lastResult) || count($this->lastResult) < 1) return null;
+		return $this->lastResult;
+	}
+
+	public function runSqlFile(string $filepath, bool $replacePrefix = true): DatabaseObject {
+		$query = file_get_contents($filepath);
+		return $this->runSqlText($query, $replacePrefix);
+	}
+
+	public function runSqlText(string $query, bool $replacePrefix = true): DatabaseObject {
+		if ($replacePrefix) $query = str_replace($this->tablePrefixPlaceholder, $this->tablePrefix, $query);
+		$currentQuery = $this->pdo->prepare($query);
+		$currentQuery->execute();
+		$this->lastResult = $currentQuery->fetchAll(\PDO::FETCH_OBJ);
+		return $this;
+	}
+	
+	public function select(array $items): DatabaseObject {
+		$this->newQuery(self::QUERY_TYPE_SELECT);
+		$this->selectItems = $items;
+		return $this;
+	}
+
+	public function show(array $items): DatabaseObject {
+		$this->newQuery(self::QUERY_TYPE_SHOW);
+		$this->selectItems = $items;
+		return $this;
+	}
+
+
+
+
+
+
+
+
+
 
 	protected function buildQuery(): string {
 		switch ($this->queryType) {
 			case self::QUERY_TYPE_SELECT: return self::buildSelectQuery();
+			case self::QUERY_TYPE_SHOW: return self::buildSelectQuery(self::QUERY_TYPE_SHOW);
+			case self::QUERY_TYPE_INSERT: return self::buildInsertQuery();
 			case self::QUERY_TYPE_UPDATE: return self::buildUpdateQuery();
 			case self::QUERY_TYPE_DELETE: return self::buildDeleteQuery();
 		}
 	}
 
-	protected function buildSelectQuery(): string {
+	protected function buildSelectQuery(string $selector = self::QUERY_TYPE_SELECT): string {
 		$first = true;
-		$query = 'SELECT ';
+		$query = $selector .' ';
 		foreach ($this->selectItems AS $item) {
 			$query .= ($first ? '' : ', '). $item;
 			$first = false;
 		}
-		$query .= ' FROM `'. $this->from['table'] .'` AS `'. $this->from['as'] .'`';
+		$query .= ' FROM '. $this->from['table'] . ($this->from['as'] !== '' ?  : '');
+		if ($this->from['as'] !== '') $query .= '` AS `'. $this->from['as'] .'`';
 		if (count($this->conditions) > 0) {
 			$query .= ' WHERE '. $this->conditionsToString();
 		}
 		return $query .';';
+	}
+
+	protected function buildInsertQuery(): string {
+
+		var_dump('TODO: buildInsertQuery');
+		die;
+
+		return '';
 	}
 
 	protected function buildUpdateQuery(): string {
@@ -114,18 +182,35 @@ class DatabaseObject {
 
 	protected function conditionsToString(): string {
 		$condString = '';
-		
-		var_dump('TODO: conditionsToString');
-		die;
-
-
-		foreach ($this->conditions AS $condition) {
-
-			
-
+		foreach ($this->conditions AS $conditionObject) {
+			if ($condString !== '') $condString .= ' '. $conditionObject['condition'] .' ';
+			$condString .= '(';
+			$first = true;
+			foreach ($conditionObject['criteria']->getConditions() AS $condition) {
+				$condString .= (!$first ? ' '. $condition['chain'] .' ' : '') . $condition['condition'];
+				$first = false;
+			}
+			$condString .= ')';
+			foreach ($conditionObject['criteria']->getValues() AS $key => $value) {
+				$this->values[$key] = $value;
+			}
 		}
 		return $condString;
 	}
+
+	protected function newQuery(string $queryType): void {
+		$this->queryType = $queryType;
+		$this->selectItems = [];
+		$this->from = [
+			'table' => '',
+			'as' => ''
+		];
+		$this->conditions = [];
+		$this->values = [];
+	}
+	
+
+	
 
 
 
@@ -432,17 +517,7 @@ class DatabaseObject {
 		$this->orderBy = $orderBy;
 	}
 
-	public function runSqlFile(string $filepath, bool $replacePrefix = true){
-		$query = file_get_contents($filepath);
-		$this->runSqlText($query, $replacePrefix);
-	}
-
-	public function runSqlText(string $query, bool $replacePrefix = true){
-		$query = str_replace($this->prefixTarget, $this->prefix, $query);
-		$currentQuery = $this->pdo->prepare($query);
-		$currentQuery->execute();
-		$this->lastResult = $currentQuery->fetchAll(\PDO::FETCH_OBJ);
-	}
+	
 	
 	public function select($item):bool{
 		if(is_string($item)){
