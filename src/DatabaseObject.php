@@ -4,7 +4,7 @@ namespace Webmgine;
 use PDO;
 use stdClass;
 use App\System\Exception;
-use Webmgine\DatabaseObjectCriteria AS Criteria;
+use Webmgine\QueryObjects\Condition;
 
 class DatabaseObject {
 
@@ -27,6 +27,7 @@ class DatabaseObject {
 	protected string $tablePrefixPlaceholder = '#__';
 	protected ?string $queryType = null;
 	protected array $selectItems = [];
+	protected array $insertItems = [];
 	protected array $from = [
 		'table' => '',
 		'as' => ''
@@ -47,13 +48,13 @@ class DatabaseObject {
 		if (isset($options[self::OPTION_TABLE_PREFIX_PLACEHOLDER])) $this->tablePrefixPlaceholder = $options[self::OPTION_TABLE_PREFIX_PLACEHOLDER];
 	}
 
-	public function addCondition(Criteria $criteria, ?string $condition = null): DatabaseObject {
-		if (is_null($condition) || !in_array($condition, [self::CONDITION_AND, self::CONDITION_OR])) {
-			$condition = self::CONDITION_AND;
+	public function addCondition(Condition $condition, ?string $chain = null): DatabaseObject {
+		if (is_null($chain) || !in_array($chain, [self::CONDITION_AND, self::CONDITION_OR])) {
+			$chain = self::CONDITION_AND;
 		}
 		$this->conditions[] = [
 			'condition' => $condition,
-			'criteria' => $criteria
+			'chain' => $chain
 		];
 		return $this;
 	}
@@ -63,6 +64,14 @@ class DatabaseObject {
 		$currentQuery = $this->pdo->prepare($query);
 		if (!$currentQuery) throw new Exception('Failed to prepare query');
 		$currentQuery->execute($this->values);
+
+		// TODO: Set error
+		/*
+		$currentQuery->errorInfo()
+		$this->state['error'] = true;
+		$this->state['messages'][] = 'Database error: '.$e;
+		*/
+
 		$this->lastResult = $currentQuery->fetchAll(PDO::FETCH_OBJ);
 		if ($this->queryType === self::QUERY_TYPE_INSERT) $this->lastInsertedId = $this->pdo->lastInsertId();
 		return $this;
@@ -95,6 +104,20 @@ class DatabaseObject {
 	public function getResults(): ?array {
 		if (!isset($this->lastResult) || !is_array($this->lastResult) || count($this->lastResult) < 1) return null;
 		return $this->lastResult;
+	}
+
+	public function insert(array $item): DatabaseObject {
+		return $this->multipleInsert([$item]);
+	}
+
+	public function into(string $table): DatabaseObject {
+		return $this->from($table);
+	}
+
+	public function multipleInsert(array $items): DatabaseObject {
+		$this->newQuery(self::QUERY_TYPE_INSERT);
+		$this->insertItems = $items;
+		return $this;
 	}
 
 	public function runSqlFile(string $filepath, bool $replacePrefix = true): DatabaseObject {
@@ -157,11 +180,26 @@ class DatabaseObject {
 	}
 
 	protected function buildInsertQuery(): string {
-
-		var_dump('TODO: buildInsertQuery');
-		die;
-
-		return '';
+		$query = 'INSERT INTO '. $this->from['table']. ' (';
+		$queryValues = ' VALUES ';
+		$itemCount = 0;
+		$this->values = [];
+		foreach ($this->insertItems AS $insertItem) {
+			$columnCount = 0;
+			$queryValues .= ($itemCount < 1 ? '' : ', ') .'(';
+			foreach ($insertItem AS $column => $value) {
+				if ($itemCount < 1) {
+					$query .= ($columnCount < 1 ? '' : ', ') . $column;
+				}
+				$valKey = 'p'. $itemCount .'c'. $columnCount;
+				$queryValues .= ($columnCount < 1 ? '' : ', ') .':'. $valKey;
+				$this->values[$valKey] = $value;
+				$columnCount++;
+			}
+			$queryValues .= ')';
+			$itemCount++;
+		}
+		return $query .')'. $queryValues .';';
 	}
 
 	protected function buildUpdateQuery(): string {
@@ -182,18 +220,21 @@ class DatabaseObject {
 
 	protected function conditionsToString(): string {
 		$condString = '';
-		foreach ($this->conditions AS $conditionObject) {
-			if ($condString !== '') $condString .= ' '. $conditionObject['condition'] .' ';
+		$x = 0;
+		foreach ($this->conditions AS $item) {
+			if ($condString !== '') $condString .= ' '. $item['condition'] .' ';
 			$condString .= '(';
+			$definition = $item['condition']->getDefinition('c'. $x);
 			$first = true;
-			foreach ($conditionObject['criteria']->getConditions() AS $condition) {
-				$condString .= (!$first ? ' '. $condition['chain'] .' ' : '') . $condition['condition'];
+			foreach ($definition['conditions'] AS $condition) {
+				$condString .= (!$first ? ' '. $item['chain'] .' ' : '') . $condition['string'];
 				$first = false;
 			}
 			$condString .= ')';
-			foreach ($conditionObject['criteria']->getValues() AS $key => $value) {
+			foreach ($definition['values'] AS $key => $value) {
 				$this->values[$key] = $value;
 			}
+			$x++;
 		}
 		return $condString;
 	}
@@ -201,6 +242,7 @@ class DatabaseObject {
 	protected function newQuery(string $queryType): void {
 		$this->queryType = $queryType;
 		$this->selectItems = [];
+		$this->insertItems = [];
 		$this->from = [
 			'table' => '',
 			'as' => ''
