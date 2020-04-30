@@ -32,6 +32,8 @@ class DatabaseObject {
 		'table' => '',
 		'as' => ''
 	];
+	protected ?int $limit = null;
+	protected string $update = '';
 	protected array $conditions = [];
 	protected array $values = [];
 	protected $lastResult;
@@ -59,19 +61,25 @@ class DatabaseObject {
 		return $this;
 	}
 
+	public function dump(): string {
+		return $this->buildQuery();
+	}
+
 	public function execute(): DatabaseObject {
 		$query = $this->buildQuery();
 		$currentQuery = $this->pdo->prepare($query);
 		if (!$currentQuery) throw new Exception('Failed to prepare query');
 		$currentQuery->execute($this->values);
+		// Check for error
+		$errorInfo = $currentQuery->errorInfo();
+		if (isset($errorInfo[0]) && $errorInfo[0] !== '00000') {
 
-		// TODO: Set error
-		/*
-		$currentQuery->errorInfo()
-		$this->state['error'] = true;
-		$this->state['messages'][] = 'Database error: '.$e;
-		*/
-
+			// TODO: Set error
+			//var_dump($errorInfo);
+			//$this->state['error'] = true;
+			//$this->state['messages'][] = 'Database error: '.$e;
+			
+		}
 		$this->lastResult = $currentQuery->fetchAll(PDO::FETCH_OBJ);
 		if ($this->queryType === self::QUERY_TYPE_INSERT) $this->lastInsertedId = $this->pdo->lastInsertId();
 		return $this;
@@ -114,6 +122,11 @@ class DatabaseObject {
 		return $this->from($table);
 	}
 
+	public function limit(?int $limit): DatabaseObject {
+		$this->limit = $limit;
+		return $this;
+	}
+
 	public function multipleInsert(array $items): DatabaseObject {
 		$this->newQuery(self::QUERY_TYPE_INSERT);
 		$this->insertItems = $items;
@@ -139,11 +152,23 @@ class DatabaseObject {
 		return $this;
 	}
 
+	public function set(string $column, $value): DatabaseObject {
+		$this->values[$column] = $value;
+		return $this;
+	}
+
 	public function show(array $items): DatabaseObject {
 		$this->newQuery(self::QUERY_TYPE_SHOW);
 		$this->selectItems = $items;
 		return $this;
 	}
+
+	public function update(string $table): DatabaseObject {
+		$this->newQuery(self::QUERY_TYPE_UPDATE);
+		$this->update = $table;
+		return $this;
+	}
+
 
 
 
@@ -167,8 +192,8 @@ class DatabaseObject {
 	protected function buildSelectQuery(string $selector = self::QUERY_TYPE_SELECT): string {
 		$first = true;
 		$query = $selector .' ';
-		foreach ($this->selectItems AS $item) {
-			$query .= ($first ? '' : ', '). $item;
+		foreach ($this->selectItems AS $as => $item) {
+			$query .= ($first ? '' : ', ') . $item . (is_int($as) ? '' : ' AS '. $as);
 			$first = false;
 		}
 		$query .= ' FROM '. $this->from['table'] . ($this->from['as'] !== '' ?  : '');
@@ -176,11 +201,14 @@ class DatabaseObject {
 		if (count($this->conditions) > 0) {
 			$query .= ' WHERE '. $this->conditionsToString();
 		}
+		if (!is_null($this->limit)) {
+			$query .= ' LIMIT '. $this->limit;
+		}
 		return $query .';';
 	}
 
 	protected function buildInsertQuery(): string {
-		$query = 'INSERT INTO '. $this->from['table']. ' (';
+		$query = 'INSERT INTO '. $this->from['table'] .' (';
 		$queryValues = ' VALUES ';
 		$itemCount = 0;
 		$this->values = [];
@@ -203,11 +231,16 @@ class DatabaseObject {
 	}
 
 	protected function buildUpdateQuery(): string {
-
-		var_dump('TODO: buildUpdateQuery');
-		die;
-
-		return '';
+		$query = 'UPDATE '. $this->update .' SET ';
+		$first = true;
+		foreach ($this->values AS $column => $value) {
+			$query .= ($first ? '' : ', ') . $column .'=:'. $column;
+			$first = false;
+		}
+		if (count($this->conditions) > 0) {
+			$query .= ' WHERE '. $this->conditionsToString();
+		}
+		return $query;
 	}
 
 	protected function buildDeleteQuery(): string {
@@ -247,6 +280,8 @@ class DatabaseObject {
 			'table' => '',
 			'as' => ''
 		];
+		$this->update = '';
+		$this->limit = null;
 		$this->conditions = [];
 		$this->values = [];
 	}

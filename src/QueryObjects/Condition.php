@@ -30,7 +30,7 @@ class Condition {
     public function addColumnValueCriteria(string $column, $value, string $comparator = self::EQUAL, string $chain = DatabaseObject::CONDITION_AND): void {
         $this->conditions[] = [
             'type' => self::CONDITION_TYPE_COLUMN_VALUE,
-            'column' => $column,
+            'column' => (in_array(strtolower($column), ['group']) ? '`'. $column .'`' : $column),
             'value' => $value,
             'comparator' => $comparator,
             'chain' => $chain
