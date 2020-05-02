@@ -60,6 +60,11 @@ class DatabaseObject {
 		];
 		return $this;
 	}
+	
+	public function delete(Condition $condition): DatabaseObject {
+		$this->newQuery(self::QUERY_TYPE_DELETE);
+		return $this->addCondition($condition);
+	}
 
 	public function dump(): string {
 		return $this->buildQuery();
@@ -244,11 +249,11 @@ class DatabaseObject {
 	}
 
 	protected function buildDeleteQuery(): string {
-
-		var_dump('TODO: buildDeleteQuery');
-		die;
-
-		return '';
+		$query = 'DELETE FROM '. $this->from['table'];
+		if (count($this->conditions) > 0) {
+			$query .= ' WHERE '. $this->conditionsToString();
+		}
+		return $query;
 	}
 
 	protected function conditionsToString(): string {
@@ -486,19 +491,7 @@ class DatabaseObject {
 		return $queryString;
 	}
 
-	public function deleteFrom(string $table, array $wheres, array $data = []):bool{
-		$query = 'DELETE FROM '.$table.' WHERE';
-		foreach($wheres AS $where){
-			$query .= ' '.$where;
-		}
-		$query = str_replace($this->prefixTarget, $this->prefix, $query);
-		$currentQuery = $this->pdo->prepare($query);
-		if(!$currentQuery){
-			return false;
-		}
-		$currentQuery->execute($data);
-		return true;
-	}
+	
 	
 	public function execute(array $data = []):bool{
 		$query = $this->buildQuery($data);
