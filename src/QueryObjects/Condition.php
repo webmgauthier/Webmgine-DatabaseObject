@@ -58,11 +58,18 @@ class Condition {
                 case self::CONDITION_TYPE_COLUMN_VALUE:
                     $key = $paramsPrefix .'p'. count($conditions);
                     $isInCondition = in_array($condition['comparator'], [self::IN, self::NOT_IN]);
-                    $conditions[] = [
-                        'string' => $condition['column'] . $condition['comparator'] .':'. ($isInCondition ? '(' : '') . $key . ($isInCondition ? ')' : ''),
-                        'chain' => $condition['chain']
-                    ];
-                    $values[$key] = $condition['value'];
+                    if (is_null($condition['value']) && ($condition['comparator'] === self::EQUAL || $condition['comparator'] === self::NOT_EQUAL)) {
+						$conditions[] = [
+	                        'string' => $condition['column'] . ' IS '. ($condition['comparator'] === self::NOT_EQUAL ? 'NOT ' : '') . 'NULL',
+	                        'chain' => $condition['chain']
+	                    ];
+                    } else {
+                    	$conditions[] = [
+	                        'string' => $condition['column'] . $condition['comparator'] .':'. ($isInCondition ? '(' : '') . $key . ($isInCondition ? ')' : ''),
+	                        'chain' => $condition['chain']
+	                    ];
+	                    $values[$key] = $condition['value'];
+                    }
                     break;
 
             }
