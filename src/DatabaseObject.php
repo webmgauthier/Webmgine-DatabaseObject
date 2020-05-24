@@ -96,9 +96,22 @@ class DatabaseObject {
 		$this->from['as'] = $as;
 		return $this;
 	}
-
+	
 	public function getDatabaseName(): string {
 		return $this->databaseName;
+	}
+	
+	public function getTableIncrementValue(string $table, bool $replacePrefix = true): int {
+		$query = 'SELECT auto_increment FROM information_schema.TABLES WHERE TABLE_NAME=:tableName AND TABLE_SCHEMA=:dbName';
+		if ($replacePrefix) {
+			$query = str_replace($this->tablePrefixPlaceholder, $this->tablePrefix, $query);
+		}
+		$currentQuery = $this->pdo->prepare($query);
+		$currentQuery->execute([
+			'tableName' => $table,
+			'dbName' => $this->getDatabaseName()
+		]);
+		return $currentQuery->fetchAll(\PDO::FETCH_OBJ)[0]->auto_increment;
 	}
 
 	public function getTablePrefix(): string {
@@ -222,7 +235,7 @@ class DatabaseObject {
 			$queryValues .= ($itemCount < 1 ? '' : ', ') .'(';
 			foreach ($insertItem AS $column => $value) {
 				if ($itemCount < 1) {
-					$query .= ($columnCount < 1 ? '' : ', ') . $column;
+					$query .= ($columnCount < 1 ? '' : ', ') . '`' . $column . '`';
 				}
 				$valKey = 'p'. $itemCount .'c'. $columnCount;
 				$queryValues .= ($columnCount < 1 ? '' : ', ') .':'. $valKey;
@@ -260,12 +273,14 @@ class DatabaseObject {
 		$condString = '';
 		$x = 0;
 		foreach ($this->conditions AS $item) {
-			if ($condString !== '') $condString .= ' '. $item['condition'] .' ';
+			if ($condString !== '') {
+				$condString .= ' '. $item['chain'] .' ';
+			}
 			$condString .= '(';
 			$definition = $item['condition']->getDefinition('c'. $x);
 			$first = true;
 			foreach ($definition['conditions'] AS $condition) {
-				$condString .= (!$first ? ' '. $item['chain'] .' ' : '') . $condition['string'];
+				$condString .= (!$first ? ' '. $condition['chain'] .' ' : '') . $condition['string'];
 				$first = false;
 			}
 			$condString .= ')';

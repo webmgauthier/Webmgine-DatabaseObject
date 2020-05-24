@@ -6,9 +6,12 @@ class Condition {
 
     const CONDITION_TYPE_COLUMN_VALUE = 'columnValue';
     const CONDITION_TYPE_STRING = 'string';
-
     const EQUAL = '=';
     const NOT_EQUAL = '!=';
+	const GREATER = '>';
+	const GREATER_EQUAL = '>=';
+    const LOWER = '<';
+	const LOWER_EQUAL = '<=';
     const IN = 'IN';
     const NOT_IN = 'NOT IN';
 
